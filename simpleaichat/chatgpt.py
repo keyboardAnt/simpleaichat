@@ -1,6 +1,9 @@
+import json
 from pydantic import HttpUrl
 from httpx import Client, AsyncClient
-from typing import List, Dict, Union, Set, Any
+from typing import List, Dict, Union, Set, Any, Optional
+from pydantic import BaseModel
+from typeguard import check_type
 import orjson
 
 from .models import ChatMessage, ChatSession
@@ -24,10 +27,15 @@ class ChatGPTSession(ChatSession):
         system: str = None,
         params: Dict[str, Any] = None,
         stream: bool = False,
-        input_schema: Any = None,
-        output_schema: Any = None,
-        is_function_calling_required: bool = True,
+        input_schema: Optional[Union[BaseModel, Dict[str, Any]]] = None,
+        output_schema: Optional[Union[BaseModel, Dict[str, Any]]] = None,
+        to_allow_unsafe_schemas: bool = False,
+        to_require_function_call: bool = True,
     ):
+        """
+        @params input_schema, output_schema: An instance of Pydantic.BaseModel or a schema in the format of 
+        Pydantic.BaseModel.schema(). If the latter, `to_allow_unsafe_schemas` must be set to True.
+        """
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth['api_key'].get_secret_value()}",
@@ -36,11 +44,12 @@ class ChatGPTSession(ChatSession):
         system_message = ChatMessage(role="system", content=system or self.system)
         if not input_schema:
             user_message = ChatMessage(role="user", content=prompt)
-        else:
+        elif isinstance(input_schema, BaseModel):
             assert isinstance(
                 prompt, input_schema
-            ), f"prompt must be an instance of {input_schema.__name__}"
+            ), f"given `to_allow_unsafe_schemas==False`, prompt must be an instance of {input_schema.__name__}"
             user_message = ChatMessage(
+                # TODO: Inspect `prompt.json()` (`prompt` is declared as a string). Meanwhile, support only unsafe output_schema
                 role="function", content=prompt.json(), name=input_schema.__name__
             )
 
@@ -52,28 +61,39 @@ class ChatGPTSession(ChatSession):
             **gen_params,
         }
 
+        def get_pydantic_schema(self, src: Union[BaseModel, Dict[str, Any]]) -> Dict[str, Any]:
+            """
+            @param src: An instance of Pydantic.BaseModel or a schema in the format of Pydantic.BaseModel.schema()
+            """
+            nonlocal to_allow_unsafe_schemas
+            if isinstance(src, BaseModel): 
+                return src.schema()
+            assert check_type(src, Dict[str, Any]), "src must be an instance of Pydantic.BaseModel or a schema in the format of Pydantic.BaseModel.schema()"
+            assert to_allow_unsafe_schemas, \
+            f"When providing a schema (`input_schema` or `output_schema`) that isn't an instance of Pydantic.BaseModel, \
+            the variable `to_allow_unsafe_schemas` must be set to True."
+            return src
+
         # Add function calling parameters if a schema is provided
         if input_schema or output_schema:
             functions = []
             if input_schema:
-                input_function = self.schema_to_function(input_schema)
+                input_function: Dict[str, Any] = pydantic_schema_to_function(get_pydantic_schema(input_schema))
                 functions.append(input_function)
             if output_schema:
-                output_function = self.schema_to_function(output_schema)
+                output_function: Dict[str, Any] = pydantic_schema_to_function(get_pydantic_schema(output_function))
                 functions.append(output_function)
-                if is_function_calling_required:
-                    data["function_call"] = {"name": output_schema.__name__}
+                if to_require_function_call:
+                    data["function_call"] = {"name": output_function["name"]}
             data["functions"] = functions
 
         return headers, data, user_message
 
-    def schema_to_function(self, schema: Any):
-        assert schema.__doc__, f"{schema.__name__} is missing a docstring."
-        return {
-            "name": schema.__name__,
-            "description": schema.__doc__,
-            "parameters": schema.schema(),
-        }
+    def pydantic_schema_to_function(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert a Pydantic schema to a Function Calling schema supported by OpenAI's API.
+        """
+        pass
 
     def gen(
         self,
