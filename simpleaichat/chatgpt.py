@@ -82,7 +82,7 @@ class ChatGPTSession(ChatSession):
                 functions.append(input_function)
             if output_schema:
                 output_function: Dict[str, Any] = pydantic_schema_to_function(get_pydantic_schema(output_function))
-                functions.append(output_function)
+                functions.append(output_function) if output_function not in functions else None
                 if to_require_function_call:
                     data["function_call"] = {"name": output_function["name"]}
             data["functions"] = functions

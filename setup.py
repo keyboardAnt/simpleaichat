@@ -25,5 +25,6 @@ setup(
         "orjson>=3.9.0",
         "rich>=13.4.1",
         "python-dateutil>=2.8.2",
+        "typeguard>=4.0.0",
     ],
 )
