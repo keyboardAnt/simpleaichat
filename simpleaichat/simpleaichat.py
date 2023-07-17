@@ -124,7 +124,7 @@ class AIChat(BaseModel):
         input_schema: Any = None,
         output_schema: Any = None,
         additional_schemas: List[Any] = None,
-    ) -> str:
+    ) -> str | dict:
         sess = self.get_session(id)
         if tools:
             for tool in tools:
