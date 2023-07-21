@@ -93,11 +93,11 @@ class AIChat(BaseModel):
         return sess
 
     def reset_session(self, id: Union[str, UUID] = None) -> None:
-        sess = self.get_session(id)
+        sess: ChatSession = self.get_session(id)
         sess.messages = []
 
     def delete_session(self, id: Union[str, UUID] = None) -> None:
-        sess = self.get_session(id)
+        sess: ChatSession = self.get_session(id)
         if self.default_session:
             if sess.id == self.default_session.id:
                 self.default_session = None
@@ -106,7 +106,7 @@ class AIChat(BaseModel):
 
     @contextmanager
     def session(self, **kwargs):
-        sess = self.new_session(return_session=True, **kwargs)
+        sess: ChatGPTSession = self.new_session(return_session=True, **kwargs)
         self.sessions[sess.id] = sess
         try:
             yield sess
@@ -125,7 +125,7 @@ class AIChat(BaseModel):
         output_schema: Any = None,
         additional_schemas: List[Any] = None,
     ) -> str | dict:
-        sess = self.get_session(id)
+        sess: ChatSession = self.get_session(id)
         if tools:
             for tool in tools:
                 assert tool.__doc__, f"Tool {tool} does not have a docstring."
@@ -159,7 +159,7 @@ class AIChat(BaseModel):
         params: Dict[str, Any] = None,
         input_schema: Any = None,
     ) -> str:
-        sess = self.get_session(id)
+        sess: ChatSession = self.get_session(id)
         return sess.stream(
             prompt,
             client=self.client,
