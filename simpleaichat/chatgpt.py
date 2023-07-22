@@ -97,7 +97,7 @@ class ChatGPTSession(ChatSession):
         input_schema: Any = None,
         output_schema: Any = None,
         additional_schemas: List[Any] = None,
-    ):
+    ) -> Any:
         headers, data, user_message = self.prepare_request(
             prompt, system, params, False, input_schema, output_schema, additional_schemas
         )
@@ -125,6 +125,10 @@ class ChatGPTSession(ChatSession):
             else:
                 content = r["choices"][0]["message"]["function_call"]["arguments"]
                 content = orjson.loads(content)
+                # if isinstance(content, dict):
+                #     content = output_schema(**content).dump_model()
+                # else:
+                #     content = orjson.loads(content)
 
             self.total_prompt_length += r["usage"]["prompt_tokens"]
             self.total_completion_length += r["usage"]["completion_tokens"]
